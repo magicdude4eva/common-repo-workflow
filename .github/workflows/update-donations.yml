@@ -1,0 +1,32 @@
+name: Reusable - Update Donation Block
+
+on:
+  workflow_call:
+
+jobs:
+  update-donations:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout target repository
+        uses: actions/checkout@v3
+
+      - name: Download update-donations.js from central repo
+        run: |
+          curl -s -o update-donations.js https://raw.githubusercontent.com/magicdude4eva/common-repo-workflow/main/update-donations.js
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Run updater
+        run: node update-donations.js
+
+      - name: Commit changes (if any)
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add README.md
+          git diff --cached --quiet || git commit -m "chore: update donation block"
+          git push
