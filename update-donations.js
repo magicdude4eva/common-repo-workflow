@@ -1,16 +1,5 @@
 const fs = require("fs");
-
-const file = "README.md";
-if (!fs.existsSync(file)) {
-  console.log("❌ No README.md found");
-  process.exit(0);
-}
-
-const content = fs.readFileSync(file, "utf8");
-if (!content.includes("## Donations are always welcome")) {
-  console.log("ℹ️ No donation section found. Skipping.");
-  process.exit(0);
-}
+const path = require("path");
 
 const newBlock = `
 ## Donations are always welcome
@@ -38,14 +27,37 @@ Crypto.com PayString: magicdude$paystring.crypto.com
 - 📈 [Binance](https://accounts.binance.com/register?ref=13896895): Trade altcoins easily  
 `.trim();
 
-const updated = content.replace(
-  /## Donations are always welcome[\s\S]*?(?=\n##|\n#|$)/,
-  newBlock
-);
+function updateFile(filePath) {
+  const content = fs.readFileSync(filePath, "utf8");
 
-if (updated === content) {
-  console.log("✅ Donation block already up to date.");
-} else {
-  fs.writeFileSync(file, updated, "utf8");
-  console.log("✅ Donation block updated.");
+  if (!content.includes("## Donations are always welcome")) {
+    console.log(`ℹ️ No donation section found in ${filePath}. Skipping.`);
+    return;
+  }
+
+  const updated = content.replace(
+    /## Donations are always welcome[\s\S]*?(?=\n##|\n#|$)/,
+    newBlock
+  );
+
+  if (updated === content) {
+    console.log(`✅ Donation block already up to date in ${filePath}`);
+  } else {
+    fs.writeFileSync(filePath, updated, "utf8");
+    console.log(`✅ Updated donation block in ${filePath}`);
+  }
 }
+
+function walkAndUpdate(dir) {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const fullPath = path.join(dir, entry.name);
+
+    if (entry.isDirectory()) {
+      walkAndUpdate(fullPath);
+    } else if (entry.name === "README.md") {
+      updateFile(fullPath);
+    }
+  }
+}
+
+walkAndUpdate(".");
