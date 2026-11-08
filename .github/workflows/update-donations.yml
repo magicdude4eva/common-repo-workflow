@@ -6,27 +6,45 @@ on:
 jobs:
   update-donations:
     runs-on: ubuntu-latest
+    # One run per calling repo at a time; queued pushes then rebase cleanly
+    concurrency:
+      group: update-donations-${{ github.repository }}
+      cancel-in-progress: false
 
     steps:
       - name: Checkout target repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
 
       - name: Download update-donations.js from central repo
         run: |
-          curl -s -o update-donations.js https://raw.githubusercontent.com/magicdude4eva/common-repo-workflow/main/update-donations.js
+          set -euo pipefail
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 5 \
+            -o "$RUNNER_TEMP/update-donations.js" \
+            https://raw.githubusercontent.com/magicdude4eva/common-repo-workflow/main/update-donations.js
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: 18
+          node-version: 24
 
       - name: Run updater
-        run: node update-donations.js
+        run: node "$RUNNER_TEMP/update-donations.js"
 
       - name: Commit changes (if any)
         run: |
+          set -euo pipefail
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git add $(find . -type f -name "README.md")
-          git diff --cached --quiet || git commit -m "chore: update donation block"
-          git push
+          find . -type f -name "README.md" -not -path "./.git/*" -print0 | xargs -0 -r git add
+          if git diff --cached --quiet; then
+            echo "No donation block changes."
+            exit 0
+          fi
+          git commit -m "chore: update donation block"
+          # Another push may have landed while this ran; rebase and retry
+          for i in 1 2 3; do
+            git pull --rebase --quiet && git push && exit 0
+            echo "Push attempt $i failed, retrying..."
+            sleep $((i * 5))
+          done
+          exit 1
