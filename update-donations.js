@@ -1,52 +1,50 @@
+// Replaces the "## Donations are always welcome" section in every README.md
+// below the current directory with the canonical block from donations.md.
+//
+// Usage: node update-donations.js [path/to/donations.md]
+// (defaults to donations.md next to this script)
+
 const fs = require("fs");
 const path = require("path");
 
-const newBlock = `
-## Donations are always welcome
+const HEADING = "## Donations are always welcome";
+const SKIP_DIRS = new Set([".git", "node_modules", "vendor", ".venv"]);
 
-[paypal]: https://paypal.me/GerdNaschenweng
+const blockFile = process.argv[2] || path.join(__dirname, "donations.md");
+const newBlock = fs.readFileSync(blockFile, "utf8").trim();
 
-🍻 **Support my work**  
-All my software is free and built in my personal time. If it helps you or your business, please consider a small donation via [PayPal][paypal] — it keeps the coffee ☕ and ideas flowing!
+if (!newBlock.startsWith(HEADING)) {
+  console.error(`❌ ${blockFile} must start with "${HEADING}"`);
+  process.exit(1);
+}
 
-💸 **Crypto Donations**  
-You can also send crypto to one of the addresses below:
-
-\`\`\`
-(BTC)   bc1qdgdkk7l98pje8ny9u4xavsvrea8dw6yu8jpnyf
-(ETH)   0x5986f713A538D6bCaC0865564dCD45E2600A3469  
-(POL)   0x5986f713A538D6bCaC0865564dCD45E2600A3469
-(CRO)   0xb83c3Fe378F5224fAdD7a0f8a7dD33a6C96C422C (Cronos or Crypto.com Paystring magicdude$paystring.crypto.com)
-(BNB)   0x5986f713A538D6bCaC0865564dCD45E2600A3469
-(LTC)   ltc1qexst2exxksfyg7erfzlfrm23twkjgf7e5fn64t
-(DOGE)  DMQsxc9XGF6526drBJDZeX7AjFDJsEz4mN
-(SOL)   t4bYQCUuoCUrp7kJ4Mz314npcTuKoUSXj28UgdMrfTb
-\`\`\`
-
-🧾 **Recommended Platforms**  
-- 👉 [Curve.com](https://www.curve.com/join#DWPXKG6E): Add your Crypto.com card to Apple Pay  
-- 🔐 [Crypto.com](https://crypto.com/app/ref6ayzqvp): Stake and get your free Crypto Visa card  
-- 📈 [Binance](https://accounts.binance.com/register?ref=13896895): Trade altcoins easily  
-`.trim();
+// The section runs from its heading up to the next level-1/level-2 heading
+// (start of line), or to the end of the file. Level-3+ headings stay inside.
+const SECTION = new RegExp(
+  `^${HEADING.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[ \\t]*$[\\s\\S]*?(?=^#{1,2}[ \\t]|(?![\\s\\S]))`,
+  "m"
+);
 
 function updateFile(filePath) {
   const content = fs.readFileSync(filePath, "utf8");
+  const match = content.match(SECTION);
 
-  if (!content.includes("## Donations are always welcome")) {
+  if (!match) {
     console.log(`ℹ️ No donation section found in ${filePath}. Skipping.`);
     return;
   }
 
-  const updated = content.replace(
-    /## Donations are always welcome[\s\S]*?(?=\n##|\n#|$)/,
-    newBlock
-  );
+  const atEOF = match.index + match[0].length === content.length;
+  // Keep a blank line before a following heading, and a final newline at EOF
+  const replacement = newBlock + (atEOF ? "\n" : "\n\n");
+  const updated =
+    content.slice(0, match.index) + replacement + content.slice(match.index + match[0].length);
 
   if (updated === content) {
     console.log(`✅ Donation block already up to date in ${filePath}`);
   } else {
     fs.writeFileSync(filePath, updated, "utf8");
-    console.log(`✅ Updated donation block in ${filePath}`);
+    console.log(`✏️ Updated donation block in ${filePath}`);
   }
 }
 
@@ -55,7 +53,7 @@ function walkAndUpdate(dir) {
     const fullPath = path.join(dir, entry.name);
 
     if (entry.isDirectory()) {
-      walkAndUpdate(fullPath);
+      if (!SKIP_DIRS.has(entry.name)) walkAndUpdate(fullPath);
     } else if (entry.name === "README.md") {
       updateFile(fullPath);
     }
