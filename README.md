@@ -36,7 +36,7 @@ name: Trigger Central Donation Block Updater
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
     paths:
       - "**/README.md"
   schedule:
